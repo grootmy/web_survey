@@ -1,0 +1,493 @@
+// src/lib/api.ts
+import type { Post, Comment as UiComment } from "@/types/post";
+import type { components } from "@/types/generated/openapi";
+type CreatePostDto = components["schemas"]["CreatePostDto"];
+type UpdatePostDto = components["schemas"]["UpdatePostDto"];
+type PostViewDto = components["schemas"]["PostViewDto"];
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || process.env.API_URL || 'http://localhost:3300';
+
+// 백엔드 게시글 데이터를 프론트엔드 타입으로 변환
+export function transformPost(post: PostViewDto): Post {
+  const rawImages = (post as any).imageUrls ?? (post as any).images ?? (post as any).image_urls ?? [];
+  const images: string[] = Array.isArray(rawImages) ? rawImages : [];
+
+  return {
+    id: String(post.id ?? ""),
+    boardId: String(post.boardId ?? ""),
+    authorId: (post as any).authorId ? String((post as any).authorId) : undefined,
+    userId: (post as any).userId ? String((post as any).userId) : undefined,
+    title: String(post.title ?? "(제목 없음)"),
+    excerpt: String((post.body ?? "").substring(0, 100)),
+    body: String(post.body ?? ""),
+    author: String(post.author ?? "작성자"),
+    createdAt: String(post.createdAt ?? new Date().toISOString()),
+    tags: Array.isArray(post.tags) ? post.tags : [],
+    likes: Number(post.likes ?? 0),
+    views: Number(post.views ?? 0),
+    dislikes: Number(post.dislikes ?? 0),
+    liked: false,
+    disliked: false,
+    imageUrls: images,
+    category: (post as any).category,
+  };
+}
+
+// 백엔드 댓글 → 프론트 댓글 타입으로 변환
+// 백엔드: { comment_id, user_id, content, created_at }
+function transformComment(raw: any): UiComment {
+  const c: UiComment = {
+    id: String(raw?.comment_id ?? raw?.id ?? ""),
+    // 닉네임 우선 표시, 없으면 user_id
+    userId: String(raw?.user?.nickname ?? raw?.user_id ?? raw?.userId ?? ""),
+    ownerId: String(raw?.user_id ?? raw?.user?.user_id ?? ""),
+    body: String(raw?.content ?? raw?.body ?? ""),
+    createdAt: String(raw?.created_at ?? raw?.createdAt ?? new Date().toISOString()),
+    status: String(raw?.status ?? "active").toLowerCase() === 'deleted' ? 'deleted' : 'active',
+    parentId: raw?.parent_comment_id ? String(raw.parent_comment_id) : undefined,
+    replies: Array.isArray(raw?.replies) ? raw.replies.map(transformComment) : undefined,
+  };
+  return c;
+}
+
+// 공통 fetch 함수 (Next.js 15 캐싱 정책 적용)
+function getCsrfToken(): string | null {
+  if (typeof document === 'undefined') return null;
+  const match = document.cookie.match(/(?:^|; )csrf_token=([^;]*)/);
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
+function isSafeMethod(method: string | undefined): boolean {
+  const m = (method || 'GET').toUpperCase();
+  return m === 'GET' || m === 'HEAD' || m === 'OPTIONS';
+}
+
+export async function apiRequest(endpoint: string, options: RequestInit = {}) {
+  const url = `${API_BASE_URL}${endpoint}`;
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(options.headers as Record<string, string> | undefined),
+  };
+
+  if (!isSafeMethod(options.method)) {
+    const csrf = getCsrfToken();
+    if (csrf) headers['X-CSRF-Token'] = csrf;
+  }
+
+  const response = await fetch(url, {
+    ...options,
+    // Next.js 15: 기본적으로 캐싱되지 않음, 명시적 캐싱 설정
+    cache: 'no-store', // 항상 최신 데이터 가져오기
+    credentials: 'include',
+    headers,
+  });
+
+  if (!response.ok) {
+    throw new Error(`API 호출 실패: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+// 게시글 목록 조회
+export async function fetchPosts(): Promise<Post[]> {
+  try {
+    if (process.env.NODE_ENV !== 'production') console.log('[DBG] fetchPosts: request /api/posts');
+    const responseData = await apiRequest('/api/posts');
+    if (process.env.NODE_ENV !== 'production') console.log('[DBG] fetchPosts: response', responseData);
+    
+    if (!responseData.success || !Array.isArray(responseData.data)) {
+      console.warn('API 응답 형식이 올바르지 않습니다:', responseData);
+      return [];
+    }
+    
+    const mapped = responseData.data.map(transformPost);
+    if (process.env.NODE_ENV !== 'production') console.log('[DBG] fetchPosts: mapped length', mapped.length);
+    return mapped;
+  } catch (error) {
+    console.error('[ERR] fetchPosts failed:', error);
+    return [];
+  }
+}
+// 홈: 인기글(정렬 기준 파라미터로 백엔드 정렬 요청)
+export async function fetchPopularPosts(limit = 5, sortBy: 'likes' | 'view_count' = 'likes'): Promise<Post[]> {
+  try {
+    const responseData = await apiRequest(`/api/posts?limit=${limit}&sortBy=${sortBy}&sortOrder=DESC`);
+    if (!responseData.success || !Array.isArray(responseData.data)) return [];
+    return responseData.data.map(transformPost);
+  } catch (e) {
+    console.warn('fetchPopularPosts 실패:', e);
+    return [];
+  }
+}
+
+// 홈: 최신 게시글
+export async function fetchRecentPosts(limit = 5): Promise<Post[]> {
+  try {
+    const responseData = await apiRequest(`/api/posts?limit=${limit}&sortBy=created_at&sortOrder=DESC`);
+    if (!responseData.success || !Array.isArray(responseData.data)) return [];
+    return responseData.data.map(transformPost);
+  } catch (e) {
+    console.warn('fetchRecentPosts 실패:', e);
+    return [];
+  }
+}
+
+// 카테고리 이름(정확 일치, 대소문자 무시)으로 게시글 조회
+export async function fetchPostsByCategoryName(
+  categoryName: string,
+  page = 1,
+  limit = 10,
+  sortBy?: 'created_at' | 'likes' | 'view_count',
+  sortOrder: 'ASC' | 'DESC' = 'DESC'
+): Promise<{ posts: Post[]; total: number; totalPages: number }> {
+  try {
+    const qs = new URLSearchParams({
+      page: String(page),
+      limit: String(limit),
+      category_name: categoryName,
+      ...(sortBy ? { sortBy } : {}),
+      ...(sortBy ? { sortOrder } : {}),
+    } as Record<string, string>);
+    const responseData = await apiRequest(`/api/posts?${qs.toString()}`, { cache: 'no-store' });
+    if (!responseData.success || !Array.isArray(responseData.data)) {
+      return { posts: [], total: 0, totalPages: 0 };
+    }
+    return {
+      posts: responseData.data.map(transformPost),
+      total: responseData.pagination?.totalItems || 0,
+      totalPages: responseData.pagination?.totalPages || 0,
+    };
+  } catch (e) {
+    console.warn('fetchPostsByCategoryName 실패:', e);
+    return { posts: [], total: 0, totalPages: 0 };
+  }
+}
+
+// 게시글 타입별 조회 (backend PostType: 'product' | 'hospital' | 'expert_qna' | ...)
+export async function fetchPostsByType(
+  type: 'product' | 'hospital' | 'expert_qna',
+  page = 1,
+  limit = 10,
+  sortBy?: 'created_at' | 'likes' | 'view_count',
+  sortOrder: 'ASC' | 'DESC' = 'DESC'
+): Promise<{ posts: Post[]; total: number; totalPages: number }> {
+  try {
+    const qs = new URLSearchParams({
+      page: String(page),
+      limit: String(limit),
+      type,
+      ...(sortBy ? { sortBy } : {}),
+      ...(sortBy ? { sortOrder } : {}),
+    } as Record<string, string>);
+
+    const responseData = await apiRequest(`/api/posts?${qs.toString()}`, { cache: 'no-store' });
+
+
+    if (!responseData.success || !Array.isArray(responseData.data)) {
+      console.warn('API 응답 형식이 올바르지 않습니다:', responseData);
+      return { posts: [], total: 0, totalPages: 0 };
+    }
+
+    return {
+      posts: responseData.data.map(transformPost),
+      total: responseData.pagination?.totalItems || 0,
+      totalPages: responseData.pagination?.totalPages || 0,
+    };
+  } catch (error) {
+    console.error('타입별 게시글 로딩 실패:', error);
+    return { posts: [], total: 0, totalPages: 0 };
+  }
+}
+
+// 특정 게시글 조회
+export async function fetchPost(id: string): Promise<Post | null> {
+  try {
+    const responseData = await apiRequest(`/api/posts/${id}`);
+    
+    if (!responseData.success || !responseData.data) {
+      return null;
+    }
+    
+    return transformPost(responseData.data);
+  } catch (error) {
+    console.error('게시글 로딩 실패:', error);
+    return null;
+  }
+}
+
+// 게시글 생성
+export async function createPost(postData: CreatePostDto, token?: string): Promise<Post> {
+  const responseData = await apiRequest('/api/posts', {
+    method: 'POST',
+    headers: {
+      ...(token && { Authorization: `Bearer ${token}` }),
+    },
+    body: JSON.stringify(postData),
+  });
+
+  if (!responseData.success || !responseData.data) {
+    throw new Error('게시글 작성에 실패했습니다.');
+  }
+
+  return transformPost(responseData.data);
+}
+
+// 게시글 수정
+export async function updatePost(
+  id: string,
+  postData: UpdatePostDto,
+  token?: string
+): Promise<Post> {
+  const responseData = await apiRequest(`/api/posts/${id}`, {
+    method: 'PATCH',
+    headers: {
+      ...(token && { Authorization: `Bearer ${token}` }),
+    },
+    body: JSON.stringify(postData),
+  });
+
+  if (!responseData.success || !responseData.data) {
+    throw new Error('게시글 수정에 실패했습니다.');
+  }
+
+  return transformPost(responseData.data);
+}
+
+// 게시글 삭제
+export async function deletePost(id: string, token?: string): Promise<void> {
+  const responseData = await apiRequest(`/api/posts/${id}`, {
+    method: 'DELETE',
+    headers: {
+      ...(token && { Authorization: `Bearer ${token}` }),
+    },
+  });
+
+  if (!responseData.success) {
+    throw new Error('게시글 삭제에 실패했습니다.');
+  }
+}
+
+// 좋아요 토글
+export async function toggleLike(id: string, token?: string): Promise<{ liked: boolean; likes: number }> {
+  const responseData = await apiRequest(`/api/posts/${id}/like`, {
+    method: 'POST',
+    headers: {
+      ...(token && { Authorization: `Bearer ${token}` }),
+    },
+  });
+
+  if (!responseData.success || !responseData.data) {
+    throw new Error('좋아요 처리에 실패했습니다.');
+  }
+
+  return responseData.data;
+}
+
+// 북마크 토글
+export async function toggleBookmark(id: string, token?: string): Promise<{ bookmarked: boolean }> {
+  const responseData = await apiRequest(`/api/posts/${id}/bookmark`, {
+    method: 'POST',
+    headers: {
+      ...(token && { Authorization: `Bearer ${token}` }),
+    },
+  });
+
+  if (!responseData.success || !responseData.data) {
+    throw new Error('북마크 처리에 실패했습니다.');
+  }
+
+  return responseData.data;
+}
+
+// 싫어요 토글
+export async function toggleDislike(id: string, token?: string): Promise<{ disliked: boolean; dislikes: number }> {
+  const responseData = await apiRequest(`/api/posts/${id}/dislike`, {
+    method: 'POST',
+    headers: {
+      ...(token && { Authorization: `Bearer ${token}` }),
+    },
+  });
+
+  if (!responseData.success || !responseData.data) {
+    throw new Error('싫어요 처리에 실패했습니다.');
+  }
+
+  return responseData.data;
+}
+
+// 조회수 증가
+export async function incrementView(id: string): Promise<void> {
+  const responseData = await apiRequest(`/api/posts/${id}/view`, {
+    method: 'POST',
+  });
+
+  if (!responseData.success) {
+    throw new Error('조회수 증가에 실패했습니다.');
+  }
+}
+
+// 댓글 생성
+export async function createComment(input: {
+  post_id: string;
+  content: string;
+  parent_comment_id?: string;
+  is_anonymous?: boolean;
+  anonymous_nickname?: string;
+}): Promise<UiComment> {
+  const responseData = await apiRequest(`/api/comments`, {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+
+  if (!responseData.success || !responseData.data) {
+    throw new Error('댓글 등록에 실패했습니다.');
+  }
+
+  return transformComment(responseData.data);
+}
+
+// 댓글 목록 조회 (부모 댓글 + 대댓글 포함 반환 가정)
+export async function fetchPostComments(postId: string): Promise<UiComment[]> {
+  const responseData = await apiRequest(`/api/comments/post/${postId}`);
+
+  if (!responseData.success || !Array.isArray(responseData.data)) {
+    return [];
+  }
+
+  return responseData.data.map(transformComment);
+}
+
+// 댓글 수정
+export async function updateComment(
+  id: string,
+  input: { content: string }
+): Promise<UiComment> {
+  const responseData = await apiRequest(`/api/comments/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(input),
+  });
+
+  if (!responseData.success || !responseData.data) {
+    throw new Error('댓글 수정에 실패했습니다.');
+  }
+
+  return transformComment(responseData.data);
+}
+
+// 댓글 삭제
+export async function deleteComment(id: string): Promise<void> {
+  const responseData = await apiRequest(`/api/comments/${id}`, {
+    method: 'DELETE',
+  });
+
+  if (!responseData.success) {
+    throw new Error('댓글 삭제에 실패했습니다.');
+  }
+}
+
+// 카테고리별 게시글 조회
+export async function fetchPostsByCategory(
+  categoryId: string,
+  page = 1,
+  limit = 10
+): Promise<{ posts: Post[]; total: number; totalPages: number }> {
+  try {
+    const responseData = await apiRequest(
+      `/api/posts?category_id=${categoryId}&page=${page}&limit=${limit}`,
+      { cache: 'no-store' }
+    );
+    
+    if (!responseData.success || !Array.isArray(responseData.data)) {
+      console.warn('API 응답 형식이 올바르지 않습니다:', responseData);
+      return { posts: [], total: 0, totalPages: 0 };
+    }
+    
+    return {
+      posts: responseData.data.map(transformPost),
+      total: responseData.pagination?.totalItems || 0,
+      totalPages: responseData.pagination?.totalPages || 0,
+    };
+  } catch (error) {
+    console.error('카테고리별 게시글 로딩 실패:', error);
+    return { posts: [], total: 0, totalPages: 0 };
+  }
+}
+
+// 카테고리 목록 조회 (슬러그→ID 매핑용)
+export async function fetchCategories(): Promise<Array<{ category_id: string; name: string; type?: string; is_active?: boolean }>> {
+  try {
+    const res = await apiRequest('/api/categories?is_active=true');
+    if (res?.success && Array.isArray(res.data)) return res.data;
+    return [];
+  } catch {
+    return [];
+  }
+}
+
+// 게시글 검색
+export async function searchPosts(
+  keyword: string,
+  page = 1,
+  limit = 10
+): Promise<{ posts: Post[]; total: number; totalPages: number }> {
+  try {
+    const responseData = await apiRequest(
+      `/api/posts/search/${encodeURIComponent(keyword)}?page=${page}&limit=${limit}`,
+      { cache: 'no-store' }
+    );
+    
+    if (!responseData.success || !Array.isArray(responseData.data)) {
+      console.warn('API 응답 형식이 올바르지 않습니다:', responseData);
+      return { posts: [], total: 0, totalPages: 0 };
+    }
+    
+    return {
+      posts: responseData.data.map(transformPost),
+      total: responseData.search?.totalResults || 0,
+      totalPages: responseData.pagination?.totalPages || 0,
+    };
+  } catch (error) {
+    console.error('게시글 검색 실패:', error);
+    return { posts: [], total: 0, totalPages: 0 };
+  }
+}
+
+// ===== 프로필/마이페이지 API =====
+export type MyStats = {
+  total_posts: number;
+  total_comments: number;
+  total_bookmarks: number;
+  posts_this_month: number;
+  comments_this_month: number;
+  likes_received: number;
+};
+
+export async function fetchMyStats(): Promise<MyStats | null> {
+  try {
+    const res = await apiRequest('/api/users/me/stats');
+    if (res?.success && res?.data) return res.data as MyStats;
+    return null;
+  } catch (e) {
+    console.warn('fetchMyStats 실패:', e);
+    return null;
+  }
+}
+
+export async function fetchMyPosts(page = 1, limit = 10) {
+  const res = await apiRequest(`/api/users/me/posts?page=${page}&limit=${limit}`);
+  if (res?.success) return { items: res.data ?? [], pagination: res.pagination };
+  return { items: [], pagination: null };
+}
+
+export async function fetchMyComments(page = 1, limit = 10) {
+  const res = await apiRequest(`/api/users/me/comments?page=${page}&limit=${limit}`);
+  if (res?.success) return { items: res.data ?? [], pagination: res.pagination };
+  return { items: [], pagination: null };
+}
+
+export async function fetchMyBookmarks(page = 1, limit = 10) {
+  const res = await apiRequest(`/api/users/me/bookmarks?page=${page}&limit=${limit}`);
+  if (res?.success) return { items: res.data ?? [], pagination: res.pagination };
+  return { items: [], pagination: null };
+}

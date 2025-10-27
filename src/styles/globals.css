@@ -1,0 +1,446 @@
+/* src/styles/globals.css */
+
+/* Google Fonts - Text Fonts (모든 import는 최상단에 위치) */
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+
+/* Tailwind CSS 4에서는 @import 방식 사용 */
+@import "tailwindcss";
+
+:root {
+  --color-primary: 59 130 246;
+  --color-primary-light: 96 165 250;
+  --color-primary-dark: 37 99 235;
+
+  --color-background-light: 249 250 251;
+  --color-background-dark: 17 24 39;
+
+  --color-card-light: 255 255 255;
+  --color-card-dark: 31 41 55;
+
+  --color-text-light: 31 41 55;
+  --color-text-dark: 249 250 251;
+  --color-text-muted-light: 107 114 128;
+  /* 어두운 모드 가독성 향상: muted 톤을 한 단계 밝게 */
+  --color-text-muted-dark: 186 193 205;
+
+  --color-border-light: 229 231 235;
+  --color-border-dark: 55 65 81;
+
+  --color-success: 34 197 94;
+  --color-danger: 220 38 38;
+  --color-warning: 234 179 8;
+
+  --shadow-card: 0 10px 30px rgba(15, 23, 42, 0.18);
+  --shadow-soft: 0 4px 12px rgba(0, 0, 0, 0.08);
+
+  --radius-md: 10px;
+  --radius-lg: 12px;
+  --radius-xl: 18px;
+
+  --font-body: "Inter", "Noto Sans KR", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Apple SD Gothic Neo", "Malgun Gothic", "Helvetica Neue", Arial, "Liberation Sans", "PingFang SC", "Hiragino Sans", sans-serif;
+  --font-heading: "Inter", "Noto Sans KR", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Apple SD Gothic Neo", "Malgun Gothic", "Helvetica Neue", Arial, "Liberation Sans", "PingFang SC", "Hiragino Sans", sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Monaco, Inconsolata, "Roboto Mono", "Source Code Pro", monospace;
+}
+
+@layer base {
+  :root {
+    color-scheme: light dark;
+
+    --bg: rgb(var(--color-background-light));
+    --bg-soft: rgb(var(--color-card-light));
+    --card: rgb(var(--color-card-light));
+    --surface: rgb(var(--color-card-light));
+    --text: rgb(var(--color-text-light));
+    --muted: rgb(var(--color-text-muted-light));
+    --border: rgb(var(--color-border-light));
+    --accent: rgb(var(--color-primary));
+    --accent-2: rgb(var(--color-primary-light));
+    --danger: rgb(var(--color-danger));
+    --success: rgb(var(--color-success));
+    --warning: rgb(var(--color-warning));
+    --shadow-soft-var: var(--shadow-soft);
+    --shadow-card-var: var(--shadow-card);
+    --radius-md-var: var(--radius-md);
+    --radius-lg-var: var(--radius-lg);
+    --radius-xl-var: var(--radius-xl);
+          --gap: 16px;
+          --maxw: 1200px;
+    --focus: 0 0 0 3px rgba(59, 130, 246, 0.35);
+    --font: var(--font-body);
+    --font-heading: var(--font-heading);
+    --font-mono: var(--font-mono);
+
+          --side-base: 320px;
+          --ui-scale: clamp(0.72, 100vw / var(--maxw), 1);
+          --side-gap: 20px;
+        }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: rgb(var(--color-background-dark));
+      --bg-soft: rgb(var(--color-card-dark));
+      --card: rgb(var(--color-card-dark));
+      --surface: rgb(var(--color-card-dark));
+      --text: rgb(var(--color-text-dark));
+      --muted: rgb(var(--color-text-muted-dark));
+      --border: rgb(var(--color-border-dark));
+      --focus: 0 0 0 3px rgba(96, 165, 250, 0.35);
+    }
+  }
+
+  /* 사용자 강제 다크모드(class 기반) 오버라이드 */
+  html.dark {
+    color-scheme: dark;
+    --bg: rgb(var(--color-background-dark));
+    --bg-soft: rgb(var(--color-card-dark));
+    --card: rgb(var(--color-card-dark));
+    --surface: rgb(var(--color-card-dark));
+    --text: rgb(var(--color-text-dark));
+    --muted: rgb(var(--color-text-muted-dark));
+    --border: rgb(var(--color-border-dark));
+    --focus: 0 0 0 3px rgba(96, 165, 250, 0.35);
+    /* text-text-* 클래스들이 사용할 수 있도록 개별 색상 변수들도 오버라이드 */
+    --color-text-light: 31 41 55;
+    --color-text-dark: 249 250 251;
+    --color-text-muted-light: 107 114 128;
+    --color-text-muted-dark: 186 193 205;
+    /* 배경색 변수들도 오버라이드 */
+    --color-card-light: 31 41 55;
+    --color-card-dark: 31 41 55;
+    --color-background-light: 249 250 251;
+    --color-background-dark: 17 24 39;
+  }
+
+  *, *::before, *::after {
+    box-sizing: border-box;
+  }
+
+  html, body {
+    height: 100%;
+  }
+
+  body {
+    margin: 0;
+    /* 그라데이션로 인한 '층' 분리 느낌 제거: 단일 배경 사용 */
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+          font-size: clamp(13.5px, 1.5vw, 15px);
+    transition: background 0.3s ease, color 0.3s ease;
+    font-weight: 400;
+  }
+
+  /* 다크 모드에서 CSS 변수들을 직접 오버라이드 */
+  html.dark {
+    --bg: rgb(var(--color-background-dark));
+    --bg-soft: rgb(var(--color-card-dark));
+    --card: rgb(var(--color-card-dark));
+    --surface: rgb(var(--color-card-dark));
+    --text: rgb(var(--color-text-dark));
+    --muted: rgb(var(--color-text-muted-dark));
+    --border: rgb(var(--color-border-dark));
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-heading);
+    font-weight: 600;
+    line-height: 1.2;
+  }
+
+  code, pre, kbd, samp {
+    font-family: var(--font-mono);
+  }
+
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  button, input, textarea {
+    font: inherit;
+    color: inherit;
+    background: transparent;
+  }
+}
+
+@layer components {
+
+  dialog.modal {
+    border: 0;
+    padding: 0;
+    background: transparent;
+  }
+
+  dialog.modal:not([open]) {
+    display: none !important;
+  }
+
+  dialog.modal[open] {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100vw;
+    height: 100vh;
+    margin: 0;
+  }
+
+  dialog.modal::backdrop {
+    background: rgba(0, 0, 0, 0.45);
+  }
+
+  .modal-card {
+    width: min(520px, calc(100vw - 32px));
+    max-height: min(80vh, 680px);
+    background: var(--surface);
+    border-radius: var(--radius-lg-var);
+    box-shadow: var(--shadow-card-var);
+    padding: 20px;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+
+  .modal-card .row {
+    display: flex;
+    gap: 10px;
+    margin: 8px 0;
+  }
+
+  .modal-card input,
+  .modal-card textarea {
+    width: 100%;
+    box-sizing: border-box;
+    background: var(--bg-soft);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md-var);
+    padding: 10px;
+  }
+
+  .modal-card textarea {
+    min-height: 140px;
+    resize: vertical;
+  }
+
+  .bottom-nav {
+    display: none;
+    position: fixed;
+    bottom: 12px;
+    left: 0;
+    right: 0;
+    justify-content: center;
+    z-index: 60;
+  }
+
+  .bottom-nav .wrap {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xl-var);
+    box-shadow: var(--shadow-soft-var);
+    display: flex;
+    gap: 4px;
+    padding: 6px;
+    max-width: 520px;
+    margin: 0 auto;
+  }
+
+  .bottom-btn {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    align-items: center;
+    justify-content: center;
+    padding: 6px 8px;
+    border-radius: var(--radius-md-var);
+    cursor: pointer;
+    color: var(--muted);
+  }
+
+  .bottom-btn[aria-selected="true"] {
+    color: var(--text);
+    background: color-mix(in oklab, var(--accent) 8%, transparent);
+  }
+
+  @media (max-width: 760px) {
+    .bottom-nav {
+      display: flex;
+    }
+  }
+
+  :focus-visible {
+    outline: var(--focus);
+    outline-offset: 2px;
+  }
+
+  .head-compact {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    color: var(--muted);
+    font-size: 12px;
+  }
+
+  .head-compact .handle {
+    color: inherit;
+  }
+
+  .title-inline {
+    margin-left: 12px;
+    flex: 1;
+    min-width: 0;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.1px;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .form.fancy {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+}
+
+@keyframes shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+
+@layer utilities {
+  .bg-background-light {
+    background-color: rgb(var(--color-background-light));
+  }
+
+  .bg-background-dark {
+    background-color: rgb(var(--color-background-dark));
+  }
+
+  .bg-card-light {
+    background-color: rgb(var(--color-card-light));
+  }
+
+  .bg-card-dark {
+    background-color: rgb(var(--color-card-dark));
+  }
+
+  /* 다크모드에서 배경색 강제 적용 */
+  html.dark .bg-card-light {
+    background-color: rgb(var(--color-card-dark)) !important;
+  }
+
+  /* 다크모드에서 배경색 강제 적용 (background-light) */
+  html.dark .bg-background-light {
+    background-color: rgb(var(--color-background-dark)) !important;
+  }
+
+  /* 다크모드에서 테두리색 강제 적용 */
+  html.dark .border-border-light {
+    border-color: rgb(var(--color-border-dark)) !important;
+  }
+
+  .bg-card {
+    background-color: var(--card);
+  }
+
+  .text-default {
+    color: var(--text);
+  }
+
+  /* Semi-transparent card background for headers with blur */
+  .bg-card-80 {
+    background-color: color-mix(in oklab, var(--card) 80%, transparent);
+  }
+
+  /* Divide color that adapts to theme (used with divide-y) */
+  .divide-default > :not([hidden]) ~ :not([hidden]) {
+    --tw-divide-opacity: 1;
+    border-color: var(--border);
+  }
+
+  .bg-surface {
+    background-color: var(--surface);
+  }
+
+  .text-text-light {
+    color: var(--text);
+  }
+
+  .text-text-dark {
+    color: var(--text);
+  }
+
+  .text-text-muted-light {
+    color: var(--muted);
+  }
+
+  .text-text-muted-dark {
+    color: var(--muted);
+  }
+
+  .text-muted {
+    color: var(--muted);
+  }
+
+  .text-primary {
+    color: rgb(var(--color-primary));
+  }
+
+  .bg-primary {
+    background-color: rgb(var(--color-primary));
+  }
+
+  .border-border-light {
+    border-color: rgb(var(--color-border-light));
+  }
+
+  .border-border-dark {
+    border-color: rgb(var(--color-border-dark));
+  }
+
+  .border-default {
+    border-color: var(--border);
+  }
+
+  .focus-ring-primary {
+    outline: 2px solid rgb(var(--color-primary));
+    outline-offset: 2px;
+  }
+
+  .shadow-soft {
+    box-shadow: var(--shadow-soft-var);
+  }
+
+  .shadow-card {
+    box-shadow: var(--shadow-card-var);
+  }
+
+  .rounded-md-var {
+    border-radius: var(--radius-md-var);
+  }
+
+  .rounded-lg-var {
+    border-radius: var(--radius-lg-var);
+  }
+
+  .rounded-xl-var {
+    border-radius: var(--radius-xl-var);
+  }
+
+.line-clamp-3 {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  }
+}
+
+

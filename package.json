@@ -1,0 +1,39 @@
+{
+  "name": "temp_web",
+  "version": "0.1.0",
+  "private": true,
+  "engines": {
+    "node": "22.20.0",
+    "npm": "9.2.0"
+  },
+  "scripts": {
+    "dev": "next dev --turbopack",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "types:openapi": "openapi-typescript http://localhost:3300/api-docs-json -o src/types/generated/openapi.ts"
+  },
+  "dependencies": {
+    "@tanstack/react-query": "^5.87.4",
+    "lucide-react": "^0.544.0",
+    "next": "15.4.6",
+    "pg": "^8.16.3",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "react-dropzone": "^14.3.8",
+    "zustand": "^5.0.8"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "^3",
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20.19.10",
+    "@types/pg": "^8.15.5",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "15.4.6",
+    "openapi-typescript": "^7.5.2",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}
